@@ -1,0 +1,3 @@
+[submodule "eazel"]
+	path = eazel
+	url = https://github.com/eazel/eazel.git
