@@ -1,0 +1,10 @@
+pandas
+numpy
+keras
+matplotlib
+h5py
+opencv-python
+scipy
+torch
+torchvision
+scikit-learn
