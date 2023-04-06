@@ -1,8 +1,18 @@
 import cv2
 import torch
 import torchvision.models as models
+import eazel.image
 from scipy.spatial import distance
 from torch.nn import AvgPool2d
+from dotenv import load_dotenv
+from eazel.db import PostgresqlManager
+import psycopg2
+import os
+import retrying
+
+dotenv_path = ".env"
+load_dotenv(dotenv_path)
+dbm = PostgresqlManager()
 
 
 def keep_ratio_resize(img, width=256):
@@ -45,33 +55,68 @@ def read_image(image: str):
     return cv2.imread(image)
 
 
+@retrying.retry(stop_max_attempt_number=5, wait_fixed=1000)
+def get_artworks_list():
+    sql = f"""
+        select id, file_name from dashboard.artwork
+    """
+
+    try:
+        artwork_list = dbm.execute_sql(sql, fetchall=True)
+        return artwork_list
+    except (Exception, psycopg2.DatabaseError) as e:
+        print(str(e))
+
+
+@retrying.retry(stop_max_attempt_number=5, wait_fixed=1000)
+def insert_to_artwork_vector(artwork_id, embedded_vector, file_name):
+    if embedded_vector is None:
+        inserting_vector = None
+    else:
+        embedded_vector_bytes = embedded_vector.numpy().tobytes()
+        inserting_vector = psycopg2.Binary(embedded_vector_bytes)
+
+    sql = f"""
+        insert into dashboard.artwork_vector (
+            artwork_id,
+            embedded_vector,
+            file_name
+        )
+        values (%s,%s,%s)
+        """
+    try:
+        dbm.execute_sql(sql,
+                        parameters=(
+                            artwork_id,
+                            inserting_vector,
+                            file_name
+                        ),
+                        commit=True)
+    except (Exception, psycopg2.DatabaseError) as e:
+        print(str(e))
+
+
 if __name__ == '__main__':
-    img1 = keep_ratio_resize(read_image("./sample_images/00095_f.jpg"))
-    img2 = keep_ratio_resize(read_image("./sample_images/00101_f.jpg"))
-    img3 = keep_ratio_resize(read_image("./sample_images/00102_f.jpg"))
-    img4 = keep_ratio_resize(read_image("./sample_images/giraffe.jpg"))
-    img5 = keep_ratio_resize(read_image("./sample_images/ocean1.jpg"))
-    img6 = keep_ratio_resize(read_image("./sample_images/ocean2.jpg"))
+    artworks = get_artworks_list()[9316:]
 
-    f1 = get_feature_vector_vgg19(img1)
-    f2 = get_feature_vector_vgg19(img2)
-    f3 = get_feature_vector_vgg19(img3)
-    f4 = get_feature_vector_vgg19(img4)
-    f5 = get_feature_vector_vgg19(img5)
-    f6 = get_feature_vector_vgg19(img6)
+    for idx, artwork in enumerate(artworks):
+        artwork_id = artwork[0]
+        file_name = artwork[1]
 
-    f1 = get_flattened_vector(f1)
-    f2 = get_flattened_vector(f2)
-    f3 = get_flattened_vector(f3)
-    f4 = get_flattened_vector(f4)
-    f5 = get_flattened_vector(f5)
-    f6 = get_flattened_vector(f6)
+        print(f"idx: {idx}: ", artwork_id, file_name)
 
-    print(f6.dtype)
-    print(calculate_similarity(f1, f2))
-    print(calculate_similarity(f1, f3))
-    print(calculate_similarity(f2, f3))
+        downloaded_image = eazel.image.download_eazel_artwork(artwork_id=artwork_id,
+                                                              file_name=file_name,
+                                                              folder_name='s3_images')
+        if downloaded_image is None or 'png' in file_name or 'gif' in file_name:
+            feature_vector = None
+            insert_to_artwork_vector(artwork_id, feature_vector, file_name)
+            os.remove(f'./s3_images/{file_name}')
+            continue
 
-    print(calculate_similarity(f4, f5))
-    print(calculate_similarity(f4, f6))
-    print(calculate_similarity(f5, f6))
+        img = keep_ratio_resize(read_image(f"./s3_images/{file_name}"))
+        feature_vector = get_feature_vector_vgg19(img)
+        feature_vector = get_flattened_vector(feature_vector)
+
+        insert_to_artwork_vector(artwork_id, feature_vector, file_name)
+        os.remove(f'./s3_images/{file_name}')

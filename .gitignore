@@ -1,2 +1,5 @@
 venv
 sample_images/*
+.idea/*
+.env
+eazel/*

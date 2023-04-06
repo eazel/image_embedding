@@ -8,3 +8,7 @@ scipy
 torch
 torchvision
 scikit-learn
+python-dotenv
+psycopg2==2.9.5
+boto3
+retrying
