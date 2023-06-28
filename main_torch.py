@@ -1,3 +1,7 @@
+'''
+eazel image (dashboard.artwork) 가 주어졌을때 벡터값으로 변환 후, 
+나중에 이미지끼리의 similarity 를 계산하기 위해 dashboard.artwork_vector 테이블에 이미지의 벡터값을 미리 저장하는 코드.
+'''
 import cv2
 import torch
 import torchvision.models as models
@@ -97,7 +101,7 @@ def insert_to_artwork_vector(artwork_id, embedded_vector, file_name):
 
 
 if __name__ == '__main__':
-    artworks = get_artworks_list()[9316:]
+    artworks = get_artworks_list()
 
     for idx, artwork in enumerate(artworks):
         artwork_id = artwork[0]
