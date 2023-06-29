@@ -1,3 +1,7 @@
+'''
+dashboard.artwork_vector 테이블에서 벡터를 읽어와서 원하는 이미지를 target으로 했을때, 
+해당 이미지와 비슷하다고 (1-consine distance >= 0.88 인것) 생각되는 이미지 10개를 가져오는 코드. 
+'''
 import numpy as np
 from dotenv import load_dotenv
 from eazel.db import PostgresqlManager
